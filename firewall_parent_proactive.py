@@ -272,6 +272,8 @@ class l2_learning (object):
   def _handle_ConnectionUp (self, event):
     log.debug("Connection %s" % (event.connection,))
     LearningSwitch(event.connection, self.transparent)
+    
+    # Allow arp based on dl_type for in_port 1 to output 2
     fm = of.ofp_flow_mod()
     fm.match.in_port = 1
     fm.priority = 33001
@@ -279,6 +281,7 @@ class l2_learning (object):
     fm.actions.append(of.ofp_action_output( port = 2 ) )
     event.connection.send( fm )
 
+    # Allow arp based on dl_type for in_port 2 to output 1
     fm = of.ofp_flow_mod()
     fm.match.in_port = 2
     fm.priority = 33001
@@ -286,6 +289,7 @@ class l2_learning (object):
     fm.actions.append(of.ofp_action_output( port = 1 ) )
     event.connection.send( fm )
 
+    # Default drop
     fm = of.ofp_flow_mod()
     fm.priority = 1001
     #fm.actions.append(of.ofp_action_output( port =  ) )
