@@ -42,7 +42,7 @@ def topology():
     net.addLink(s1,h1)
     net.addLink(s1,h2)
     net.addLink(s1,fw10)
-    net.addLink(s2,fw11)
+    net.addLink(s2,fw10)
     
     net.addLink(s2,fw11)
     net.addLink(s2,id8)
