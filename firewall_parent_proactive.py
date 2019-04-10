@@ -14,7 +14,6 @@
 
 """
 An L2 learning switch.
-
 It is derived from one written live for an SDN crash course.
 It is somwhat similar to NOX's pyswitch in that it installs
 exact-match rules for each flow.
@@ -35,47 +34,7 @@ log = core.getLogger()
 # Can be overriden on commandline.
 _flood_delay = 0
 
-class LearningSwitch (object):
-  """
-  The learning switch "brain" associated with a single OpenFlow switch.
-
-  When we see a packet, we'd like to output it on a port which will
-  eventually lead to the destination.  To accomplish this, we build a
-  table that maps addresses to ports.
-
-  We populate the table by observing traffic.  When we see a packet
-  from some source coming from some port, we know that source is out
-  that port.
-
-  When we want to forward traffic, we look up the desintation in our
-  table.  If we don't know the port, we simply send the message out
-  all ports except the one it came in on.  (In the presence of loops,
-  this is bad!).
-
-  In short, our algorithm looks like this:
-
-  For each packet from the switch:
-  1) Use source address and switch port to update address/port table
-  2) Is transparent = False and either Ethertype is LLDP or the packet's
-     destination address is a Bridge Filtered address?
-     Yes:
-        2a) Drop packet -- don't forward link-local traffic (LLDP, 802.1x)
-            DONE
-  3) Is destination multicast?
-     Yes:
-        3a) Flood the packet
-            DONE
-  4) Port for destination address in our address/port table?
-     No:
-        4a) Flood the packet
-            DONE
-  5) Is output port the same as input port?
-     Yes:
-        5a) Drop packet and similar ones for a while
-  6) Install flow table entry in the switch so that this
-     flow goes out the appopriate port
-     6a) Send the packet out appropriate port
-  """
+class FirewallSwitch (object):
   def __init__ (self, connection, transparent):
     # Switch we'll be adding L2 learning switch capabilities to
     self.connection = connection
@@ -90,9 +49,7 @@ class LearningSwitch (object):
     # Add a Couple of Rules
     #self.AddRule('00-00-00-00-00-01',EthAddr('00:00:00:00:00:01'))
     #self.AddRule('00-00-00-00-00-01',EthAddr('00:00:00:00:00:02'))
-
-    # We want to hear PacketIn messages, so we listen
-    # to the connection
+    self.BasicRule(connection)
     connection.addListeners(self)
 
     # We just use this to know when to log a helpful message
@@ -106,6 +63,25 @@ class LearningSwitch (object):
   def AddRule (self, dpidstr, src=0,value=True):
     self.firewall[(dpidstr,src)]=value
     log.debug("Adding firewall rule in %s: %s", dpidstr, src)
+
+  def BasicRule (self, connection):
+    fm = of.ofp_flow_mod()
+    fm.match.in_port = 1
+    fm.priority = 33001
+    fm.match.dl_type = 0x0806
+    fm.actions.append(of.ofp_action_output( port = 2 ) )
+    connection.send( fm )
+    # Allow arp based on dl_type for in_port 2 to output 1
+    fm = of.ofp_flow_mod()
+    fm.match.in_port = 2
+    fm.priority = 33001
+    fm.match.dl_type = 0x0806
+    fm.actions.append(of.ofp_action_output( port = 1 ) )
+    connection.send( fm )
+    # Default drop
+    fm = of.ofp_flow_mod()
+    fm.priority = 1001
+    connection.send( fm )
 
   # function that allows deleting firewall rules from the firewall table
   # Not used DeleteRule
@@ -194,37 +170,6 @@ class LearningSwitch (object):
     packet = event.parsed
     if packet.type == packet.ARP_TYPE:
         log.info("Caught Arp packet")
-        '''fm = of.ofp_flow_mod()
-        fm.match.in_port = 1
-        fm.priority = 33001
-        fm.match.dl_type = 0x0806
-        fm.actions.append(of.ofp_action_output( port = 2 ) )
-        event.connection.send( fm )
-
-        fm = of.ofp_flow_mod()
-        fm.match.in_port = 2
-        fm.priority = 33001
-        fm.match.dl_type = 0x0806
-        fm.actions.append(of.ofp_action_output( port = 1 ) )
-        event.connection.send( fm )'''
-
-        #fm = of.ofp_flow_mod()
-        #fm.match.in_port = 1
-        #fm.priority = 33001
-        #fm.match.dl_type = 0x0800
-        #fm.match.nw_src = IPAddr("10.0.0.11")
-        #fm.match.nw_dst = IPAddr("10.0.0.12")
-        #fm.actions.append(of.ofp_action_output( port = 3 ) )
-        #event.connection.send( fm )
-
-        #fm = of.ofp_flow_mod()
-        #fm.match.in_port = 3
-        #fm.priority = 33001
-        #fm.match.dl_type = 0x0800
-        #fm.match.nw_src = IPAddr("10.0.0.12")
-        #fm.match.nw_dst = IPAddr("10.0.0.11")
-        #fm.actions.append(of.ofp_action_output( port = 1 ) )
-        #event.connection.send( fm )
 
     # Check the Firewall Rules
     if self.CheckRule(dpidstr, packet.src) == False:
@@ -261,7 +206,7 @@ class LearningSwitch (object):
         self.connection.send(msg)
 
 
-class l2_learning (object):
+class firewall (object):
   """
   Waits for OpenFlow switches to connect and makes them learning switches.
   """
@@ -271,10 +216,14 @@ class l2_learning (object):
 
   def _handle_ConnectionUp (self, event):
     log.debug("Connection %s" % (event.connection,))
-    LearningSwitch(event.connection, self.transparent)
-    
+    #FirewallSwitch(event.connection, self.transparent)
+    log.debug("###################DPID#############:%s ", dpid_to_str(event.connection.dpid))
     # Allow arp based on dl_type for in_port 1 to output 2
-    fm = of.ofp_flow_mod()
+    #if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-01":
+#       return
+    if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-0b":
+        FW1(event.connection, self.transparent)
+    """fm = of.ofp_flow_mod()
     fm.match.in_port = 1
     fm.priority = 33001
     fm.match.dl_type = 0x0806
@@ -294,11 +243,33 @@ class l2_learning (object):
     fm.priority = 1001
     #fm.actions.append(of.ofp_action_output( port =  ) )
     event.connection.send( fm )
+    #fw1(event)    """
+
+class FW1 (FirewallSwitch):
+
+    def AddRule(self, connection):
+        fm = of.ofp_flow_mod()
+        fm.match.in_port = 1
+        fm.priority = 33001
+        fm.match.dl_type = 0x0806
+        fm.actions.append(of.ofp_action_output( port = 2 ) )
+        connection.send( fm )
+        # Allow arp based on dl_type for in_port 2 to output 1
+        fm = of.ofp_flow_mod()
+        fm.match.in_port = 2
+        fm.priority = 33001
+        fm.match.dl_type = 0x0806
+        fm.actions.append(of.ofp_action_output( port = 1 ) )
+        connection.send( fm )
+        # Default drop
+        fm = of.ofp_flow_mod()
+        fm.priority = 1001
+        connection.send( fm )
 
 
 def launch (transparent=False, hold_down=_flood_delay):
   """
-  Starts an L2 learning switch.
+  Starts an firewall switch.
   """
   try:
     global _flood_delay
@@ -307,4 +278,4 @@ def launch (transparent=False, hold_down=_flood_delay):
   except:
     raise RuntimeError("Expected hold-down to be a number")
 
-  core.registerNew(l2_learning, str_to_bool(transparent))
+  core.registerNew(firewall, str_to_bool(transparent))
