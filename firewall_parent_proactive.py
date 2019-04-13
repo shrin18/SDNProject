@@ -67,14 +67,14 @@ class FirewallSwitch (object):
   def BasicRule (self, connection):
     fm = of.ofp_flow_mod()
     fm.match.in_port = 1
-    fm.priority = 33001
+    fm.priority = 18001
     fm.match.dl_type = 0x0806
     fm.actions.append(of.ofp_action_output( port = 2 ) )
     connection.send( fm )
     # Allow arp based on dl_type for in_port 2 to output 1
     fm = of.ofp_flow_mod()
     fm.match.in_port = 2
-    fm.priority = 33001
+    fm.priority = 18001
     fm.match.dl_type = 0x0806
     fm.actions.append(of.ofp_action_output( port = 1 ) )
     connection.send( fm )
@@ -221,8 +221,9 @@ class firewall (object):
     # Allow arp based on dl_type for in_port 1 to output 2
     #if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-01":
 #       return
-    if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-0b":
-        FW1(event.connection, self.transparent)
+    if dpid_to_str(event.connection.dpid) != "00-00-00-00-00-0b":
+        return
+    FW1(event.connection, self.transparent)
     """fm = of.ofp_flow_mod()
     fm.match.in_port = 1
     fm.priority = 33001
