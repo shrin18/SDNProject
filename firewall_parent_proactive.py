@@ -25,7 +25,7 @@ from pox.lib.util import dpid_to_str
 from pox.lib.util import str_to_bool
 from pox.lib.addresses import IPAddr, EthAddr
 import time
-
+import pox.lib.packet as pkt
 from pox.lib.addresses import EthAddr
 
 log = core.getLogger()
@@ -64,6 +64,9 @@ class FirewallSwitch (object):
     self.firewall[(dpidstr,src)]=value
     log.debug("Adding firewall rule in %s: %s", dpidstr, src)
 
+  @classmethod
+  def getConnection(self):
+        return self.connection
   def BasicRule (self, connection):
     fm = of.ofp_flow_mod()
     fm.match.in_port = 1
@@ -221,52 +224,59 @@ class firewall (object):
     # Allow arp based on dl_type for in_port 1 to output 2
     #if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-01":
 #       return
-    if dpid_to_str(event.connection.dpid) != "00-00-00-00-00-0b":
+    if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-0a":
+        fw1 = FW1(event.connection, self.transparent)
+        fw1.AddRule(event.connection)
+    elif dpid_to_str(event.connection.dpid) == "00-00-00-00-00-0b":
+        fw2 = FW2(event.connection, self.transparent)
+        fw2.AddRule(event.connection)
+    else:
         return
-    FW1(event.connection, self.transparent)
-    """fm = of.ofp_flow_mod()
-    fm.match.in_port = 1
-    fm.priority = 33001
-    fm.match.dl_type = 0x0806
-    fm.actions.append(of.ofp_action_output( port = 2 ) )
-    event.connection.send( fm )
-
-    # Allow arp based on dl_type for in_port 2 to output 1
-    fm = of.ofp_flow_mod()
-    fm.match.in_port = 2
-    fm.priority = 33001
-    fm.match.dl_type = 0x0806
-    fm.actions.append(of.ofp_action_output( port = 1 ) )
-    event.connection.send( fm )
-
-    # Default drop
-    fm = of.ofp_flow_mod()
-    fm.priority = 1001
-    #fm.actions.append(of.ofp_action_output( port =  ) )
-    event.connection.send( fm )
-    #fw1(event)    """
 
 class FW1 (FirewallSwitch):
-
-    def AddRule(self, connection):
-        fm = of.ofp_flow_mod()
-        fm.match.in_port = 1
-        fm.priority = 33001
-        fm.match.dl_type = 0x0806
-        fm.actions.append(of.ofp_action_output( port = 2 ) )
-        connection.send( fm )
-        # Allow arp based on dl_type for in_port 2 to output 1
+    @staticmethod
+    def AddRule(connection):
+        #connection = connection()
+        # ICMP Echo Request in_port 2 out_port 1
         fm = of.ofp_flow_mod()
         fm.match.in_port = 2
         fm.priority = 33001
-        fm.match.dl_type = 0x0806
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
         fm.actions.append(of.ofp_action_output( port = 1 ) )
         connection.send( fm )
-        # Default drop
+        # ICMP Echo Reply in_port 1 out_port 2
         fm = of.ofp_flow_mod()
-        fm.priority = 1001
+        fm.match.in_port = 1
+        fm.priority = 33001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REPLY
+        fm.actions.append(of.ofp_action_output( port = 2 ) )
         connection.send( fm )
 
+class FW2 (FirewallSwitch):
+    @staticmethod
+    def AddRule(connection):
+        # ALLOW default in_port 2 out_port 1
+        fm = of.ofp_flow_mod()
+        fm.match.in_port = 2
+        fm.priority = 33001
+        #fm.match.dl_type = 0x0800
+        #fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        #fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        fm.actions.append(of.ofp_action_output( port = 1 ) )
+        connection.send( fm )
+        # Allow Echo Reply in_port 1 out_port 2
+        fm = of.ofp_flow_mod()
+        fm.match.in_port = 1
+        fm.priority = 33001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REPLY
+        fm.actions.append(of.ofp_action_output( port = 2 ) )
+        connection.send( fm )
 
 def launch (transparent=False, hold_down=_flood_delay):
   """
