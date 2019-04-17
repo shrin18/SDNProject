@@ -1,9 +1,4 @@
-
 #!/usr/bin/python
-
-"""
-Script created by VND - Visual Network Description (SDN version)
-"""
 from mininet.net import Mininet
 from mininet.node import Controller, RemoteController, OVSKernelSwitch, OVSLegacyKernelSwitch, UserSwitch
 from mininet.cli import CLI
@@ -12,7 +7,7 @@ from mininet.link import Link, TCLink
 from mininet.topo import Topo
 from mininet.log import setLogLevel, info
 import os
-test_phase1 = os.path.expanduser('~') + '/topology_Answer/Report_generate'
+test_phase1 =os.path.expanduser('~') + '/ik2220-assign-phase1-team5/results/phase_1_report.txt'
 
 def topology():
     "Create a network."
@@ -50,12 +45,15 @@ def topology():
     ds10 = net.addHost( 'ds10', ip = '100.0.0.22/24')
     insp11 = net.addHost( 'insp11',ip = '100.0.0.30/24')
 
-     print "*** Creating links"
+
+
+
+    print "*** Creating links"
     net.addLink(s1,h1)
     net.addLink(s1,h2)
     net.addLink(s1,fw10)
     net.addLink(s2,fw10)
-
+    
     net.addLink(s2,fw11)
     net.addLink(s2,id8)
     net.addLink(s2,lb6)
@@ -70,7 +68,6 @@ def topology():
     net.addLink(lb7,id8)
     net.addLink(n9,fw11)
     net.addLink(s5, h3)
-
     net.addLink(s5, h4)
     net.addLink(s5,n9)
     net.addLink(id8,insp11)
@@ -91,11 +88,21 @@ def topology():
     print ("Done")
     test_start(net)
 
-    def test_start(net):
+def startserver(net):
+    ds8 = net.get('ds8')
+    ws5 = net.get('ws5')
+
+    ds8.cmd('python3 dnsserver.py &')
+    ws5.cmd('python -m SimpleHTTPServer 80 &')
+
+def test_start(net):
     log = open(test_phase1, 'w+')
     h1 = net.get('h1')
     h2 = net.get('h2')
     h3 = net.get('h3')
+    h4 = net.get('h4')
+    ds8 = net.get('ds8')
+    ws5 = net.get('ws5')
     output = h1.cmdPrint('ping -c5', h2.IP())
     log.write('h1 ping h2\n'+output+'\n')
 
@@ -104,16 +111,74 @@ def topology():
     log.write('h1 ping h3\n'+output+'\n')
 
         #case 3
+    output = h1.cmdPrint('ping -c5', h4.IP())
+    log.write('h1 ping h4\n'+output+'\n')
+
+        #case4
+    output = h3.cmdPrint('ping -c5', h4.IP())
+    log.write('h3 ping h4\n'+output+'\n')
+
+        #case5
     output = h3.cmdPrint('ping -c5', h1.IP())
     log.write('h3 ping h1\n'+output+'\n')
 
+        #case6
+    output = h3.cmdPrint('ping -c5', h2.IP())
+    log.write('h3 ping h2\n'+output+'\n')
+
+        #case7
+    output = h1.cmdPrint('ping -c5', ds8.IP())
+    log.write('h1 ping ds8\n'+output+'\n')
+
+        #case8
+    output = h1.cmdPrint('ping -c5', ws5.IP())
+    log.write('h1 ping ws5\n'+output+'\n')
+
+        #case9
+    output = h2.cmdPrint('ping -c5', ws5.IP())
+    log.write('h3 ping h1\n'+output+'\n')
+
+        #case10
+    output = h2.cmdPrint('ping -c5', ds8.IP())
+    log.write('h2 ping ds8\n'+output+'\n')
+
+        #case11
+    output = h3.cmdPrint('ping -c5', ds8.IP())
+    log.write('h3 ping ds8\n'+output+'\n')
+
+        #case12
+    output = h3.cmdPrint('ping -c5', ws5.IP())
+    log.write('h3 ping ws5\n'+output+'\n')
+
+        #case13
+    output = h4.cmdPrint('ping -c5', ds8.IP())
+    log.write('h4 ping ds8\n'+output+'\n')
+
+        #case14
+    output = h4.cmdPrint('ping -c5', ws5.IP())
+    log.write('h4 ping ws5\n'+output+'\n')
+
+
+    startserver(net)
+    #15 UDP ds1
+    dig = ''.join(['dig @', ds8.IP(), ' web1.com'])
+    result=h3.cmdPrint(dig)
+    log.write('h3 dig ds8\n'+result+'\n\n')
+    
+    #8 h1 UDP ds1
+    dig = ''.join(['dig @', ds8.IP(), ' web1.com'])
+    result=h1.cmdPrint(dig)
+    log.write('h1 dig ds8\n'+result+'\n\n')
+
+    
     log.close()
- #print "*** Running CLI"
+
+    #print "*** Running CLI"
     CLI( net )
 
     print "*** Stopping network"
     net.stop()
 
 if __name__=='__main__':
-
+        
         topology()
