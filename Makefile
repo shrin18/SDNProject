@@ -13,11 +13,11 @@ app:
 clean:
 	sudo pkill -9 -f pox.py
   
-  #topology
+#topology
   
-  topo:
+topo:
 	sudo python phase1.py
 
-  clean:
+clean:
 	sudo mn -c
 
