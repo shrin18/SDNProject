@@ -27,6 +27,7 @@ from pox.lib.addresses import IPAddr, EthAddr
 import time
 import pox.lib.packet as pkt
 from pox.lib.addresses import EthAddr
+from pox.forwarding.l2_learning import LearningSwitch
 
 log = core.getLogger()
 
@@ -231,7 +232,7 @@ class firewall (object):
         fw2 = FW2(event.connection, self.transparent)
         fw2.AddRule(event.connection)
     else:
-	return
+	LearningSwitch(event.connection, False)
 
 class FW1 (FirewallSwitch):
     @staticmethod	
@@ -316,7 +317,7 @@ class FW2 (FirewallSwitch):
 	#Allow incoming DNS Response
 	fm = of.ofp_flow_mod()
         fm.match.in_port = 1
-        fm.priority = 33001
+        fm.priority = 55001
         fm.match.dl_type = 0x0800
         fm.match.nw_proto=pkt.ipv4.UDP_PROTOCOL
         fm.match.tp_src = 53
@@ -325,11 +326,28 @@ class FW2 (FirewallSwitch):
 	#Allow HTTP incoming response
 	fm = of.ofp_flow_mod()
         fm.match.in_port = 1
-        fm.priority = 33001
+        fm.priority = 55001
         fm.match.dl_type = 0x0800
         fm.match.nw_proto=pkt.ipv4.TCP_PROTOCOL
         fm.match.tp_src = 80
         fm.actions.append(of.ofp_action_output( port = 2 ) )
+        connection.send( fm )
+	#Block ICMP request for dmz
+	fm = of.ofp_flow_mod()
+        fm.match.in_port = 2
+        fm.priority = 55001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+	fm.match.nw_dst='100.0.0.20'
+        connection.send( fm )
+	fm = of.ofp_flow_mod()
+        fm.match.in_port = 2
+        fm.priority = 55001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        fm.match.nw_dst='100.0.0.40'
         connection.send( fm )
 
 def launch (transparent=False, hold_down=_flood_delay):
