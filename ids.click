@@ -20,12 +20,12 @@
 
 ctr_pkt_in, ctr_pkt_malicious, ctr_pkt_benign :: AverageCounter;
 
-fromSwitch :: FromDevice(<sw2IFNAME>, METHOD LINUX, SNIFFER false);
-fromLoadbal :: FromDevice(<lb2IFNAME>, METHOD LINUX, SNIFFER false);
+fromSwitch :: FromDevice(id8-eth1, METHOD LINUX, SNIFFER false);
+fromLoadbal :: FromDevice(id8-eth2, METHOD LINUX, SNIFFER false);
 
-toSwitch :: Queue -> ToDevice(<sw2IFNAME>); // connect sw2
-toInsp :: Queue -> ctr_pkt_malicious -> ToDevice(<inspIFNAME>); // connect insp and count number of malicious packets
-toLoadbal :: Queue -> ctr_pkt_benign -> ToDevice(<lb2IFNAME>); // connect lb2 and count number of benign packets
+toSwitch :: Queue -> ToDevice(id8-eth1); // connect sw2
+toInsp :: Queue -> ctr_pkt_malicious -> ToDevice(id8-eth3); // connect insp and count number of malicious packets
+toLoadbal :: Queue -> ctr_pkt_benign -> ToDevice(id8-eth2); // connect lb2 and count number of benign packets
 
 //Define patterns to look out for
 filter :: Classifier( 
