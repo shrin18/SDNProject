@@ -10,15 +10,15 @@ icmp, drop_IF1, drop_IF2, drop_IP :: Counter;
 
 // Traffic from server to client
 init_serv :: FromDevice(lb6-eth2, METHOD LINUX, SNIFFER false);
-end_cli :: Queue -> IF2_out -> ToDevice(lb6-eth1, METHOD LINUX); 
+end_cli :: Queue -> IF1_out -> ToDevice(lb6-eth1, METHOD LINUX); 
 
 // Traffic from client to server
 init_cli :: FromDevice(lb6-eth1, METHOD LINUX, SNIFFER false);
-end_serv :: Queue -> IF1_out -> ToDevice(lb6-eth2, METHOD LINUX);
+end_serv :: Queue -> IF2_out -> ToDevice(lb6-eth2, METHOD LINUX);
 
 
 // Packet classification
-cli_pkt, ser_pkt :: Classifier(
+cli_pkt, serv_pkt :: Classifier(
 					12/0806 20/0001, //[0]ARP request
 					12/0806 20/0002, //[1]ARP reply
 					12/0800,	 //[2]IP
@@ -48,21 +48,21 @@ ip_assign[1] -> ip_to_cli;
 
 
 // packet coming from server 
-init_serv -> IF1_in -> serv_pkt;
+init_serv -> IF2_in -> serv_pkt;
 serv_pkt[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb6-eth2) -> end_serv; 
 serv_pkt[1] -> arp_rep2 -> [1]serv_arpq;
 serv_pkt[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from server") -> [1]ip_assign; //IP packet and Strip(14) to get rid of the Ethernet header
-serv_pkt[3] -> drop_IF1 -> Discard; //Drop other packets
+serv_pkt[3] -> drop_IF2 -> Discard; //Drop other packets
 
 // packet coming from client 
-init_cli -> IF2_in -> cli_pkt;
+init_cli -> IF1_in -> cli_pkt;
 cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb6-eth1) -> end_cli; 
 cli_pkt[1] -> arp_rep1 -> [1]cli_arpq; 
 cli_pkt[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from client") -> cli_IP_pkt :: IPClassifier(icmp, dst udp port 53, -); //IP packet
 	cli_IP_pkt[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
 	cli_IP_pkt[1] -> [0]ip_assign; //UDP
 	cli_IP_pkt[2] -> drop_IP -> Discard; //drop other IP packets
-cli_pkt[3] -> drop_IF2 -> Discard; //Drop other packet
+cli_pkt[3] -> drop_IF1 -> Discard; //Drop other packet
 
 
 
