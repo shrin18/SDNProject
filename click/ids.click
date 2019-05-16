@@ -53,7 +53,7 @@ fromLoadbal -> toSwitch;    // On return path ids should be transparant to all p
 
 
 // report
-DriverManager(wait , print > ../results/ids.report  "
+DriverManager(wait , print > ids.report  "
 	=================== IDS Report ===================
 	Input Packet Rate (pps): $(ctr_pkt_in.rate)
 	Output Packet Rate(pps): $(ctr_pkt_benign.rate)
