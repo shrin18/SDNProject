@@ -45,7 +45,7 @@ ip_rewrite[1] -> ip_to_cli;
 
 // packet from server 
 from_serv -> IF2_in -> serv_classifier;
-serv_classifier[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb8-eth1) -> to_serv; //ARP request
+serv_classifier[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb6-eth1) -> to_serv; //ARP request
 serv_classifier[1] -> arp_res2 -> [1]serv_arpq; //ARP reply
 serv_classifier[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet from server") -> [1]ip_rewrite; //IP packet
 serv_classifier[3] -> drop_IF2 -> Discard; //Drop rest packet
@@ -53,7 +53,7 @@ serv_classifier[3] -> drop_IF2 -> Discard; //Drop rest packet
 
 // packet from client 
 from_cli -> IF1_in -> cli_classifier;
-cli_classifier[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb8-eth2) -> to_client; //ARP request
+cli_classifier[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb6-eth2) -> to_client; //ARP request
 cli_classifier[1] -> arp_res1 -> [1]cli_arpq; //ARP reply
 cli_classifier[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet from client") -> cli_IP_classifier :: IPClassifier(icmp, dst udp port 53, -); //IP packet
 	cli_IP_classifier[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
