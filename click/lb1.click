@@ -49,9 +49,9 @@ fromswitch3 -> input1 -> client_classifier;
 client_classifier[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb6-eth2) -> toswitch3; //ARP request
 client_classifier[1] -> arp_res1 -> [1]fromotherswitch; //ARP reply
 client_classifier[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet from client") -> client_IP_classifier :: IPClassifier(icmp, dst udp port 53, -); //IP packet
-client_IP_classifier[0] -> icmp -> icmppr :: ICMPPingResponder() -> iptoswitch2; //ICMP
-client_IP_classifier[1] -> [0]ip_rewrite; //UDP
-client_IP_classifier[2] -> drop3 -> Discard; //otherpackets
+	client_IP_classifier[0] -> icmp -> icmppr :: ICMPPingResponder() -> iptoswitch2; //ICMP
+	client_IP_classifier[1] -> [0]ip_rewrite; //UDP
+	client_IP_classifier[2] -> drop3 -> Discard; //otherpackets
 client_classifier[3] -> drop1 -> Discard; //Drop other packet
 
 
