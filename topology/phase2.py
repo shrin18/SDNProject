@@ -124,7 +124,7 @@ def test_start(net):
     ws6 = net.get('ws6')
     ws7 = net.get('ws7')
 
-    insp11.cmd("tcpdump -s 0 -i insp11-eth0 -w ~/ik2220-assign-phase2-team5/results/insp11.pcap &")
+    insp11.cmd("tcpdump -s 0 -i insp11-eth0 -w insp11.pcap &")
 
 
         #case1 Ping within Public Zone
