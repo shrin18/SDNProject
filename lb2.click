@@ -26,8 +26,8 @@ cli_pkt, serv_pkt :: Classifier(
 
 	
 // ARP query definition
-serv_arpq :: ARPQuerier(100.0.0.25, lb6-eth1);
-cli_arpq :: ARPQuerier(100.0.0.25, lb6-eth2);
+serv_arpq :: ARPQuerier(100.0.0.45, lb6-eth1);
+cli_arpq :: ARPQuerier(100.0.0.45, lb6-eth2);
 
 
 // IP packet
@@ -39,9 +39,9 @@ ip_to_serv :: GetIPAddress(16) -> CheckIPHeader -> [0]serv_arpq -> IPPrint("IP p
 
 // Load balancing through Round Rrobin and IP Rewrite elements
 ip_map :: RoundRobinIPMapper(
-	100.0.0.25 - 100.0.0.40 80 0 1, 
-	100.0.0.25 - 100.0.0.41 80 0 1, 
-	100.0.0.25 - 100.0.0.42 80 0 1);
+	100.0.0.45 - 100.0.0.40 80 0 1, 
+	100.0.0.45 - 100.0.0.41 80 0 1, 
+	100.0.0.45 - 100.0.0.42 80 0 1);
 ip_assign :: IPRewriter(ip_map, pattern 100.0.0.45 20000-65535 - -  1 0);
 ip_assign[0] -> ip_to_serv;
 ip_assign[1] -> ip_to_cli;
@@ -49,14 +49,14 @@ ip_assign[1] -> ip_to_cli;
 
 // packet coming from server 
 init_serv -> IF2_in -> serv_pkt;
-serv_pkt[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb7-eth1) -> end_serv; 
+serv_pkt[0] -> arp_req2 -> ARPResponder(100.0.0.45 lb7-eth1) -> end_serv; 
 serv_pkt[1] -> arp_rep2 -> [1]serv_arpq;
 serv_pkt[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from server") -> [1]ip_assign; //IP packet and Strip(14) to get rid of the Ethernet header
 serv_pkt[3] -> drop_IF2 -> Discard; //Drop other packets
 
 // packet coming from client 
 init_cli -> IF1_in -> cli_pkt;
-cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb7-eth2) -> end_cli; 
+cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.45 lb7-eth2) -> end_cli; 
 cli_pkt[1] -> arp_rep1 -> [1]cli_arpq; 
 cli_pkt[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from client") -> cli_IP_pkt :: IPClassifier(icmp, dst tcp port 80, -); //IP packet
 	cli_IP_pkt[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
