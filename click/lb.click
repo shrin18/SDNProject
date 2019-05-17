@@ -102,8 +102,8 @@ cli_pkt[3] -> drop_IF1_2 -> Discard; //Drop other packet
 
 DriverManager(wait , print > ../results/lb1.report  "
 	=================== LB1 Report ===================================
-	Input Packet Rate (pps): $(add $(IF2_in.rate) $(IF1_in.rate))
-	Output Packet Rate(pps): $(add $(IF2_out.rate) $(IF1_out.rate))
+	Input Packet Rate (pps): $(add $(IF2_in_1.rate) $(IF1_in_1.rate))
+	Output Packet Rate(pps): $(add $(IF2_out_1.rate) $(IF1_out_1.rate))
 
 	Total # of input packets: $(add $(IF2_in.count) $(IF1_in.count))
 	Total # of output packets: $(add $(IF2_out.count) $(IF2_out.count))
@@ -117,3 +117,16 @@ DriverManager(wait , print > ../results/lb1.report  "
 	==================================================================== 
 " , stop);
 
+DriverManager(wait , print > ../results/lb2.report  "
+	=================== LB2 Report ===================================
+	Input Packet Rate (pps): $(add $(IF2_in_2.rate) $(IF1_in_2.rate))
+	Output Packet Rate(pps): $(add $(IF2_out_2.rate) $(IF1_out_2.rate))
+	Total # of input packets: $(add $(IF2_in.count) $(IF1_in.count))
+	Total # of output packets: $(add $(IF2_out.count) $(IF2_out.count))
+	Total # of ARP requests packets: $(add $(arp_req1.count) $(arp_req2.count))
+	Total # of ARP respondes packets: $(add $(arp_rep1.count) $(arp_rep2.count))
+	Total # of service requests packets: $(add $(ip1.count) $(ip2.count))
+	Total # of ICMP packets: $(icmp.count)
+	Total # of dropped packets: $(add $(drop_IF1.count) $(drop_IF2.count) $(drop_IP.count))
+	==================================================================== 
+" , stop);
