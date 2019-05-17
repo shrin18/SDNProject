@@ -60,7 +60,7 @@ cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.45 lb7-eth2) -> end_cli;
 cli_pkt[1] -> arp_rep1 -> [1]cli_arpq; 
 cli_pkt[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from client") -> cli_IP_pkt :: IPClassifier(icmp, dst tcp port 80, -); //IP packet
 	cli_IP_pkt[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
-	cli_IP_pkt[1] -> [0]ip_assign; //UDP
+	cli_IP_pkt[1] -> [0]ip_assign; //TCP
 	cli_IP_pkt[2] -> drop_IP -> Discard; //drop other IP packets
 cli_pkt[3] -> drop_IF1 -> Discard; //Drop other packet
 
