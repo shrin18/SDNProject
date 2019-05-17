@@ -1,81 +1,173 @@
-//define counter
-IF1_in, IF1_out, IF2_in, IF2_out :: AverageCounter;
-arp_req1, arp_res1, ip1 :: Counter;
-arp_req2, arp_res2, ip2 :: Counter;
+//LOAD BALANCER
+
+//define average counters
+IF1_in, IF1_out, IF2_in, IF2_out :: AverageCounter; 
+
+//define counters for different packets
+arp_req1, arp_rep1, ip1 :: Counter;
+arp_req2, arp_rep2, ip2 :: Counter;
 icmp, drop_IF1, drop_IF2, drop_IP :: Counter;
 
+// Traffic from server to client
+init_serv :: FromDevice(lb7-eth1, METHOD LINUX, SNIFFER false);
+end_cli :: Queue -> IF1_out -> ToDevice(lb7-eth2, METHOD LINUX); 
 
-// from client to server
-from_cli :: FromDevice(lb6-eth2, METHOD LINUX, SNIFFER false);
-to_serv :: Queue -> output2 -> ToDevice(lb6-eth1, METHOD LINUX);
-
-
-// from server to client
-from_serv :: FromDevice(lb6-eth1, METHOD LINUX, SNIFFER false);
-to_cli :: Queue -> output1 -> ToDevice(lb6-eth2, METHOD LINUX);
+// Traffic from client to server
+init_cli :: FromDevice(lb7-eth2, METHOD LINUX, SNIFFER false);
+end_serv :: Queue -> IF2_out -> ToDevice(lb7-eth1, METHOD LINUX);
 
 
-// Packet classifier
-client_classifier, server_classifier :: Classifier(
-	12/0806 20/0001, //[0]ARP request
-	12/0806 20/0002, //[1]ARP reply
-	12/0800,		 //[2]IP
-	-);				 //[3]rest
+// Packet classification
+cli_pkt, serv_pkt :: Classifier(
+					12/0806 20/0001, //[0]ARP request
+					12/0806 20/0002, //[1]ARP reply
+					12/0800,	 //[2]IP
+					-);		 //[3]others
 
 	
-// ARP querier
-serv_arpq :: ARPQuerier(100.0.0.25, lb6-eth1);
-cli_arpq :: ARPQuerier(100.0.0.25, lb6-eth2);
+// ARP query definition
+serv_arpq :: ARPQuerier(100.0.0.45, lb7-eth1);
+cli_arpq :: ARPQuerier(100.0.0.45, lb7-eth2);
 
 
 // IP packet
-ip_to_cli :: GetIPAddress(16) -> CheckIPHeader -> [0]cli_arpq -> IPPrint("Ip packet to client") -> to_cli;
-ip_to_ser :: GetIPAddress(16) -> CheckIPHeader -> [0]serv_arpq -> IPPrint("Ip packet to server") -> to_serv;
+// GetIPAddress(16) OFFSET is usually 16, to fetch the destination address from an IP packet.
+
+ip_to_cli :: GetIPAddress(16) -> CheckIPHeader -> [0]cli_arpq -> IPPrint("IP packet destined to client") -> end_cli;
+ip_to_serv :: GetIPAddress(16) -> CheckIPHeader -> [0]serv_arpq -> IPPrint("IP packet destined to server") -> end_serv;
 
 
-// round robin, IP rewrite
-round_robin :: RoundRobinIPMapper(
+// Load balancing through Round Rrobin and IP Rewrite elements
+ip_map :: RoundRobinIPMapper(
+	100.0.0.45 - 100.0.0.40 80 0 1, 
+	100.0.0.45 - 100.0.0.41 80 0 1, 
+	100.0.0.45 - 100.0.0.42 80 0 1);
+ip_assign :: IPRewriter(ip_map, pattern 100.0.0.45 20000-65535 - -  1 0);
+ip_assign[0] -> ip_to_serv;
+ip_assign[1] -> ip_to_cli;
+
+
+// packet coming from server 
+init_serv -> IF2_in -> serv_pkt;
+serv_pkt[0] -> arp_req2 -> ARPResponder(100.0.0.45 lb7-eth1) -> end_serv; 
+serv_pkt[1] -> arp_rep2 -> [1]serv_arpq;
+serv_pkt[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from server") -> [1]ip_assign; //IP packet and Strip(14) to get rid of the Ethernet header
+serv_pkt[3] -> drop_IF2 -> Discard; //Drop other packets
+
+// packet coming from client 
+init_cli -> IF1_in -> cli_pkt;
+cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.45 lb7-eth2) -> end_cli; 
+cli_pkt[1] -> arp_rep1 -> [1]cli_arpq; 
+cli_pkt[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from client") -> cli_IP_pkt :: IPClassifier(icmp, dst tcp port 80, -); //IP packet
+	cli_IP_pkt[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
+	cli_IP_pkt[1] -> [0]ip_assign; //UDP
+	cli_IP_pkt[2] -> drop_IP -> Discard; //drop other IP packets
+cli_pkt[3] -> drop_IF1 -> Discard; //Drop other packet
+
+
+
+//Report generation
+
+DriverManager(wait , print > lb2.report  "
+	=================== LB2 Report ===================================
+	Input Packet Rate (pps): $(add $(IF2_in.rate) $(IF1_in.rate))
+	Output Packet Rate(pps): $(add $(IF2_out.rate) $(IF1_out.rate))
+	Total # of input packets: $(add $(IF2_in.count) $(IF1_in.count))
+	Total # of output packets: $(add $(IF2_out.count) $(IF2_out.count))
+	Total # of ARP requests packets: $(add $(arp_req1.count) $(arp_req2.count))
+	Total # of ARP respondes packets: $(add $(arp_rep1.count) $(arp_rep2.count))
+	Total # of service requests packets: $(add $(ip1.count) $(ip2.count))
+	Total # of ICMP packets: $(icmp.count)
+	Total # of dropped packets: $(add $(drop_IF1.count) $(drop_IF2.count) $(drop_IP.count))
+	==================================================================== 
+" , stop);
+
+shrinish@click:/opt/ik2220/click$ 
+shrinish@click:/opt/ik2220/click$ 
+shrinish@click:/opt/ik2220/click$ 
+shrinish@click:/opt/ik2220/click$ 
+shrinish@click:/opt/ik2220/click$ cat LB1.click
+IF1_in, IF1_out, IF2_in, IF2_out :: AverageCounter; 
+
+//define counters for different packets
+arp_req1, arp_rep1, ip1 :: Counter;
+arp_req2, arp_rep2, ip2 :: Counter;
+icmp, drop_IF1, drop_IF2, drop_IP :: Counter;
+
+// Traffic from server to client
+init_serv :: FromDevice(lb6-eth2, METHOD LINUX, SNIFFER false);
+end_cli :: Queue -> IF2_out -> ToDevice(lb6-eth1, METHOD LINUX); 
+
+// Traffic from client to server
+init_cli :: FromDevice(lb6-eth1, METHOD LINUX, SNIFFER false);
+end_serv :: Queue -> IF1_out -> ToDevice(lb6-eth2, METHOD LINUX);
+
+
+// Packet classification
+cli_pkt, serv_pkt :: Classifier(
+					12/0806 20/0001, //[0]ARP request
+					12/0806 20/0002, //[1]ARP reply
+					12/0800,	 //[2]IP
+					-);		 //[3]others
+
+	
+// ARP query definition
+serv_arpq :: ARPQuerier(100.0.0.25, lb6-eth2);
+cli_arpq :: ARPQuerier(100.0.0.25, lb6-eth1);
+
+
+// IP packet
+// GetIPAddress(16) OFFSET is usually 16, to fetch the destination address from an IP packet.
+
+ip_to_cli :: GetIPAddress(16) -> CheckIPHeader -> [0]cli_arpq -> IPPrint("IP packet destined to client") -> end_cli;
+ip_to_serv :: GetIPAddress(16) -> CheckIPHeader -> [0]serv_arpq -> IPPrint("IP packet destined to server") -> end_serv;
+
+
+// Load balancing through Round Rrobin and IP Rewrite elements
+ip_map :: RoundRobinIPMapper(
 	100.0.0.25 - 100.0.0.20 53 0 1, 
 	100.0.0.25 - 100.0.0.21 53 0 1, 
 	100.0.0.25 - 100.0.0.22 53 0 1);
-ip_rewrite :: IPRewriter(round_robin, pattern 100.0.0.25 20000-65535 - -  1 0);
-ip_rewrite[0] -> ip_to_serv;
-ip_rewrite[1] -> ip_to_cli;
+ip_assign :: IPRewriter(ip_map, pattern 100.0.0.25 20000-65535 - -  1 0);
+ip_assign[0] -> ip_to_serv;
+ip_assign[1] -> ip_to_cli;
 
 
-// packet from server 
-from_serv -> IF2_in -> serv_classifier;
-serv_classifier[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb6-eth1) -> to_serv; //ARP request
-serv_classifier[1] -> arp_res2 -> [1]serv_arpq; //ARP reply
-serv_classifier[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet from server") -> [1]ip_rewrite; //IP packet
-serv_classifier[3] -> drop_IF2 -> Discard; //Drop rest packet
+// packet coming from server 
+init_serv -> IF1_in -> serv_pkt;
+serv_pkt[0] -> arp_req2 -> ARPResponder(100.0.0.25 lb6-eth2) -> end_serv; 
+serv_pkt[1] -> arp_rep2 -> [1]serv_arpq;
+serv_pkt[2] -> ip2 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from server") -> [1]ip_assign; //IP packet and Strip(14) to get rid of the Ethernet header
+serv_pkt[3] -> drop_IF1 -> Discard; //Drop other packets
+
+// packet coming from client 
+init_cli -> IF2_in -> cli_pkt;
+cli_pkt[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb6-eth1) -> end_cli; 
+cli_pkt[1] -> arp_rep1 -> [1]cli_arpq; 
+cli_pkt[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet coming from client") -> cli_IP_pkt :: IPClassifier(icmp, dst udp port 53, -); //IP packet
+	cli_IP_pkt[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
+	cli_IP_pkt[1] -> [0]ip_assign; //UDP
+	cli_IP_pkt[2] -> drop_IP -> Discard; //drop other IP packets
+cli_pkt[3] -> drop_IF2 -> Discard; //Drop other packet
 
 
-// packet from client 
-from_cli -> IF1_in -> cli_classifier;
-cli_classifier[0] -> arp_req1 -> ARPResponder(100.0.0.25 lb6-eth2) -> to_client; //ARP request
-cli_classifier[1] -> arp_res1 -> [1]cli_arpq; //ARP reply
-cli_classifier[2] -> ip1 -> Strip(14) -> CheckIPHeader -> IPPrint("IP packet from client") -> cli_IP_classifier :: IPClassifier(icmp, dst udp port 53, -); //IP packet
-	cli_IP_classifier[0] -> icmp -> icmppr :: ICMPPingResponder() -> ip_to_cli; //ICMP
-	cli_IP_classifier[1] -> [0]ip_rewrite; //UDP
-	cli_IP_classifier[2] -> drop_IP -> Discard; //rest
-client_classifier[3] -> drop_IF1 -> Discard; //Drop rest packet
 
+//Report generation
 
-//Report
-DriverManager(wait , print > lb1.report  "
-	=================== LB1 Report ===================
-	Input Packet Rate (pps): $(add $(input1.rate) $(input2.rate))
-	Output Packet Rate(pps): $(add $(output1.rate) $(output2.rate))
+DriverManager(wait , print > ../results/lb1.report  "
+	=================== LB1 Report ===================================
+	Input Packet Rate (pps): $(add $(IF2_in.rate) $(IF1_in.rate))
+	Output Packet Rate(pps): $(add $(IF2_out.rate) $(IF1_out.rate))
 
-	Total # of input packets: $(add $(input1.count) $(input2.count))
-	Total # of output packets: $(add $(output1.count) $(output2.count))
+	Total # of input packets: $(add $(IF2_in.count) $(IF1_in.count))
+	Total # of output packets: $(add $(IF2_out.count) $(IF2_out.count))
 
 	Total # of ARP requests packets: $(add $(arp_req1.count) $(arp_req2.count))
-	Total # of ARP respondes packets: $(add $(arp_res1.count) $(arp_res2.count))
+	Total # of ARP respondes packets: $(add $(arp_rep1.count) $(arp_rep2.count))
 
 	Total # of service requests packets: $(add $(ip1.count) $(ip2.count))
 	Total # of ICMP packets: $(icmp.count)
-	Total # of dropped packets: $(add $(drop1.count) $(drop2.count) $(drop3.count))
-	================================================== 
+	Total # of dropped packets: $(add $(drop_IF1.count) $(drop_IF2.count) $(drop_IP.count))
+	==================================================================== 
 " , stop);
+
