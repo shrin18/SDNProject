@@ -26,8 +26,8 @@ cli_pkt, serv_pkt :: Classifier(
 
 	
 // ARP query definition
-serv_arpq :: ARPQuerier(100.0.0.45, lb6-eth1);
-cli_arpq :: ARPQuerier(100.0.0.45, lb6-eth2);
+serv_arpq :: ARPQuerier(100.0.0.45, lb7-eth1);
+cli_arpq :: ARPQuerier(100.0.0.45, lb7-eth2);
 
 
 // IP packet
