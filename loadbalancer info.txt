@@ -1,17 +1,21 @@
-for lb6
-VIP = 100.0.0.25
-prt_n = 53
-prt = udp
-port1 =eth2 port2 =eth1
-DIP_1 = 100.0.0.20
-DIP_2 = 100.0.0.21
-DIP_3 = 100.0.0.22
+For lb6
+$LB = lb6
+$VIP = 100.0.0.25
+$prt_n = 53
+$prt = udp
+$port1 =eth2 
+$port2 =eth1
+$DIP_1 = 100.0.0.20
+$DIP_2 = 100.0.0.21
+$DIP_3 = 100.0.0.22
 
-for lb7
-VIP = 100.0.0.45
-prt_n = 80
-prt = tcp
-port1 =eth1 port2 =eth2
-DIP_1 = 100.0.0.40
-DIP_2 = 100.0.0.41
-DIP_3 = 100.0.0.42
+For lb7
+$LB = lb7
+$VIP = 100.0.0.45
+$prt_n = 80
+$prt = tcp
+$port1 =eth1 
+$port2 =eth2
+$DIP_1 = 100.0.0.40
+$DIP_2 = 100.0.0.41
+$DIP_3 = 100.0.0.42
