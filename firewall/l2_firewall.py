@@ -28,9 +28,10 @@ import time
 import pox.lib.packet as pkt
 from pox.lib.addresses import EthAddr
 from pox.forwarding.l2_learning import LearningSwitch
+import os
 
 log = core.getLogger()
-
+rPath = ""
 # We don't want to flood immediately when a switch connects.
 # Can be overriden on commandline.
 _flood_delay = 0
@@ -219,7 +220,9 @@ class firewall (object):
     self.transparent = transparent
 
   def _handle_ConnectionUp (self, event):
+    global rPath
     log.debug("Connection %s" % (event.connection,))
+    log.debug("report rPath %s ", rPath)
     #FirewallSwitch(event.connection, self.transparent)
     log.debug("###################DPID#############:%s ", dpid_to_str(event.connection.dpid)) 
     # Allow arp based on dl_type for in_port 1 to output 2
@@ -231,6 +234,15 @@ class firewall (object):
     elif dpid_to_str(event.connection.dpid) == "00-00-00-00-00-0b":
         fw2 = FW2(event.connection, self.transparent)
         fw2.AddRule(event.connection)
+    if dpid_to_str(event.connection.dpid) == "00-00-00-00-00-08":
+	os.system('sudo /usr/local/bin/click /opt/ik2220/pox/ext/ids.click rPath='+rPath+' &')
+    elif dpid_to_str(event.connection.dpid) == "00-00-00-00-00-06":
+        os.system('sudo /usr/local/bin/click /opt/ik2220/pox/ext/lb_update.click LB=lb6 VIP=100.0.0.25 prt_n=53 prt=udp port1=eth2 port2=eth1 DIP_1=100.0.0.20 DIP_2=100.0.0.21 DIP_3=100.0.0.22 rPath='+rPath+' &')
+    elif dpid_to_str(event.connection.dpid) == "00-00-00-00-00-07":
+        os.system('sudo /usr/local/bin/click /opt/ik2220/pox/ext/lb_update.click LB=lb7 VIP=100.0.0.45 prt_n=80 prt=tcp port1=eth1 port2=eth2 DIP_1=100.0.0.40 DIP_2=100.0.0.41 DIP_3=100.0.0.42 rPath='+rPath+' &')
+    elif dpid_to_str(event.connection.dpid) == "00-00-00-00-00-09":
+	#os.system('sudo /usr/local/bin/click /opt/ik2220/click/n9.click &')
+        os.system('sudo /usr/local/bin/click /opt/ik2220/pox/ext/napt.click rPath='+rPath+' &')
     else:
 	LearningSwitch(event.connection, False)
 
@@ -256,6 +268,19 @@ class FW1 (FirewallSwitch):
 	fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REPLY
         fm.actions.append(of.ofp_action_output( port = 2 ) )
 	connection.send( fm )
+	#Allow icmp echo request for SLBs in_port 1
+        fm = init_fm( 1, 2)
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        fm.match.nw_dst='100.0.0.25'
+        connection.send(fm)
+        fm = init_fm( 1, 2)
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        fm.match.nw_dst='100.0.0.45'
+        connection.send(fm)
+        #Allow ICMP reply from SLBs in_port 2 out_port 1
+        fm = init_fm( 2, 1)
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REPLY
+        connection.send(fm)
 	#Allow DNS Request
 	fm = of.ofp_flow_mod()
         fm.match.in_port = 1
@@ -333,29 +358,58 @@ class FW2 (FirewallSwitch):
         fm.actions.append(of.ofp_action_output( port = 2 ) )
         connection.send( fm )
 	#Block ICMP request for dmz
-	fm = of.ofp_flow_mod()
-        fm.match.in_port = 2
-        fm.priority = 55001
-        fm.match.dl_type = 0x0800
-        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
-        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
-	fm.match.nw_dst='100.0.0.20'
-        connection.send( fm )
-	fm = of.ofp_flow_mod()
-        fm.match.in_port = 2
-        fm.priority = 55001
-        fm.match.dl_type = 0x0800
-        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
-        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
-        fm.match.nw_dst='100.0.0.40'
-        connection.send( fm )
+	#fm = of.ofp_flow_mod()
+        #fm.match.in_port = 2
+        #fm.priority = 55001
+        #fm.match.dl_type = 0x0800
+        #fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        #fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+	#fm.match.nw_dst='100.0.0.20'
+        #connection.send( fm )
+	#fm = of.ofp_flow_mod()
+        #fm.match.in_port = 2
+        #fm.priority = 55001
+        #fm.match.dl_type = 0x0800
+        #fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        #fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        #fm.match.nw_dst='100.0.0.40'
+        #connection.send( fm )
+	connection.send( block_icmp_ip('100.0.0.20') )
+	connection.send( block_icmp_ip('100.0.0.21') )
+	connection.send( block_icmp_ip('100.0.0.22') )
+	connection.send( block_icmp_ip('100.0.0.40') )
+	connection.send( block_icmp_ip('100.0.0.41') )
+	connection.send( block_icmp_ip('100.0.0.42') )
 
-def launch (transparent=False, hold_down=_flood_delay):
+def block_icmp_ip(ip):
+	fm = of.ofp_flow_mod()
+        fm.match.in_port = 2
+        fm.priority = 55001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        fm.match.tp_src = pkt.ICMP.TYPE_ECHO_REQUEST
+        fm.match.nw_dst=ip
+	return fm
+
+def init_fm(in_port, out_port):
+	fm = of.ofp_flow_mod()
+        fm.match.in_port = in_port
+        fm.priority = 33001
+        fm.match.dl_type = 0x0800
+        fm.match.nw_proto=pkt.ipv4.ICMP_PROTOCOL
+        #fm.match.tp_src = tp_src
+        fm.actions.append(of.ofp_action_output( port = out_port ) )
+        return fm
+
+def launch (pathExec, transparent=False, hold_down=_flood_delay):
   """
   Starts an firewall switch.
   """
   try:
     global _flood_delay
+    global rPath
+    print("Pathexec:"+pathExec)
+    rPath = pathExec
     _flood_delay = int(str(hold_down), 10)
     assert _flood_delay >= 0
   except:
