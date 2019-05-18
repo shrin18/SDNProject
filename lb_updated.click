@@ -26,8 +26,8 @@ cli_pkt, serv_pkt :: Classifier(
 
 	
 // ARP query definition
-serv_arpq :: ARPQuerier($VIP, $LB-$port1);
-cli_arpq :: ARPQuerier($VIP, $LB-$port2);
+serv_arpq :: ARPQuerier($VIP/32, $LB-$port1);
+cli_arpq :: ARPQuerier($VIP/32, $LB-$port2);
 
 
 // IP packet
