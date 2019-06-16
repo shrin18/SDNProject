@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/shrin18/SDN_Project.svg?branch=master)](https://travis-ci.org/shrin18/SDN_Project)
+
 ## SDN_Project
 
 <img width="500" alt="topo" src="https://user-images.githubusercontent.com/23298265/58379578-ae2c9700-7fa5-11e9-80a6-9f4c0dfc71fa.PNG">
